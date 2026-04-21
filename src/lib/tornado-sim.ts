@@ -8,6 +8,9 @@ export type TornadoControls = {
   swirlRatio: number
   updraft: number
   turbulence: number
+  humidity: number
+  translationSpeed: number
+  surfaceRoughness: number
   density: number
 }
 
@@ -18,22 +21,27 @@ export type TornadoDiagnostics = {
   visibleColumnMeters: number
 }
 
-export const PARTICLE_LIMIT = 14000
+export const PARTICLE_LIMIT = 16500
 
 export const defaultControls: TornadoControls = {
   intensity: 0.96,
   radius: 6.4,
   height: 28,
-  coreRadius: 1.25,
-  swirlRatio: 1.1,
-  updraft: 18,
-  turbulence: 0.56,
-  density: 0.8,
+  coreRadius: 1.2,
+  swirlRatio: 1.08,
+  updraft: 18.5,
+  turbulence: 0.58,
+  humidity: 0.8,
+  translationSpeed: 8.5,
+  surfaceRoughness: 0.72,
+  density: 0.82,
 }
 
 const AIR_DENSITY = 1.18
-const MIN_PARTICLES = 3200
+const MIN_PARTICLES = 3400
 const TAU = Math.PI * 2
+const STORM_HEADING_X = 0.93
+const STORM_HEADING_Z = -0.37
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -56,42 +64,86 @@ function gaussian(distance: number, width: number) {
   return Math.exp(-sqr(distance / Math.max(width, 0.0001)))
 }
 
+function createParticleSpriteTexture() {
+  const size = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Unable to create particle sprite texture')
+  }
+
+  context.clearRect(0, 0, size, size)
+
+  for (let index = 0; index < 18; index += 1) {
+    const x = size * (0.24 + Math.random() * 0.52)
+    const y = size * (0.24 + Math.random() * 0.52)
+    const radius = size * (0.08 + Math.random() * 0.18)
+    const alpha = 0.08 + Math.random() * 0.1
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius)
+
+    gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`)
+    gradient.addColorStop(0.55, `rgba(255, 255, 255, ${alpha * 0.45})`)
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
+
+    context.fillStyle = gradient
+    context.fillRect(0, 0, size, size)
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.wrapS = THREE.ClampToEdgeWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+
+  return texture
+}
+
+function getStormMotion(config: TornadoControls) {
+  return {
+    x: STORM_HEADING_X * config.translationSpeed,
+    z: STORM_HEADING_Z * config.translationSpeed,
+  }
+}
+
 function getEnvelopeRadius(config: TornadoControls, height01: number) {
   return Math.max(
-    config.coreRadius * 1.9,
-    config.radius * (1.08 - 0.62 * Math.pow(clamp(height01, 0, 1), 0.86)),
+    config.coreRadius * 2,
+    config.radius * (1.1 - 0.64 * Math.pow(clamp(height01, 0, 1), 0.84)),
   )
 }
 
 function getCoreRadius(config: TornadoControls, height01: number) {
   return Math.max(
-    0.42,
-    config.coreRadius * (0.92 - 0.26 * Math.pow(clamp(height01, 0, 1), 0.92)),
+    0.44,
+    config.coreRadius * (0.94 - 0.24 * Math.pow(clamp(height01, 0, 1), 0.9)),
   )
 }
 
 function getAxisOffset(config: TornadoControls, height01: number, time: number) {
-  const meander = config.radius * (0.08 + config.turbulence * 0.08)
-  const shear = config.radius * config.turbulence * height01 * 0.14
+  const motionLean = config.translationSpeed * height01 * (0.18 + config.turbulence * 0.06)
+  const meander = config.radius * (0.045 + config.turbulence * 0.075)
+  const shear = config.radius * config.turbulence * height01 * 0.12
 
   return {
     x:
-      Math.sin(time * 0.16) * meander * 0.55 +
+      STORM_HEADING_X * motionLean +
+      Math.sin(time * 0.16) * meander * 0.48 +
       Math.sin(time * 0.43 + height01 * 2.3) * shear,
     z:
-      Math.cos(time * 0.2 + 0.8) * meander * 0.52 +
+      STORM_HEADING_Z * motionLean +
+      Math.cos(time * 0.19 + 0.8) * meander * 0.44 +
       Math.cos(time * 0.37 - height01 * 2.1) * shear,
   }
 }
 
 function getPeakTangentialSpeedMs(config: TornadoControls, height01: number) {
-  const contraction = Math.pow(config.radius / Math.max(config.coreRadius, 0.45), 0.28)
-  const structure = 0.88 + config.swirlRatio * 0.42
-  const verticalDecay = 1.06 - 0.54 * Math.pow(clamp(height01, 0, 1), 0.9)
+  const contraction = Math.pow(config.radius / Math.max(config.coreRadius, 0.45), 0.3)
+  const structure = 0.84 + config.swirlRatio * 0.5
+  const verticalDecay = 1.08 - 0.56 * Math.pow(clamp(height01, 0, 1), 0.88)
 
-  return (
-    config.updraft * config.intensity * structure * contraction * verticalDecay
-  )
+  return config.updraft * config.intensity * structure * contraction * verticalDecay
 }
 
 function getPressureDropHpa(config: TornadoControls) {
@@ -110,11 +162,17 @@ export function deriveTornadoDiagnostics(
 ): TornadoDiagnostics {
   const peakWindMs = getPeakTangentialSpeedMs(config, 0)
   const pressureDropHpa = getPressureDropHpa(config)
+  const humidityGain = lerp(0.28, 0.72, config.humidity)
   const visibleColumnMeters =
     config.height *
-    (0.76 +
-      clamp(config.intensity - 0.6, 0, 1.2) * 0.12 +
-      clamp(config.turbulence, 0, 1.4) * 0.05)
+    clamp(
+      0.24 +
+        humidityGain +
+        clamp(pressureDropHpa / 80, 0, 1) * 0.16 +
+        clamp(config.intensity - 0.5, 0, 1.2) * 0.08,
+      0.22,
+      1.08,
+    )
 
   return {
     peakWindKmh: Math.round(peakWindMs * 3.6),
@@ -143,6 +201,7 @@ export class TornadoSimulation {
 
   private readonly geometry: THREE.BufferGeometry
   private readonly material: THREE.ShaderMaterial
+  private readonly spriteTexture: THREE.CanvasTexture
   private readonly positions: Float32Array
   private readonly velocities: Float32Array
   private readonly colors: Float32Array
@@ -188,12 +247,15 @@ export class TornadoSimulation {
     this.geometry.setAttribute('aSize', this.sizeAttribute)
     this.geometry.setDrawRange(0, 0)
 
+    this.spriteTexture = createParticleSpriteTexture()
+
     this.material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       uniforms: {
         uPixelRatio: { value: 1 },
+        uSprite: { value: this.spriteTexture },
       },
       vertexShader: `
         uniform float uPixelRatio;
@@ -209,21 +271,24 @@ export class TornadoSimulation {
           vAlpha = aAlpha;
 
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-          float perspective = 300.0 / max(1.0, -mvPosition.z);
-          gl_PointSize = clamp(aSize * perspective * uPixelRatio, 1.0, 72.0);
+          float perspective = 340.0 / max(1.0, -mvPosition.z);
+          gl_PointSize = clamp(aSize * perspective * uPixelRatio, 1.0, 96.0);
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
+        uniform sampler2D uSprite;
+
         varying vec3 vColor;
         varying float vAlpha;
 
         void main() {
+          vec4 sprite = texture2D(uSprite, gl_PointCoord);
           vec2 centered = gl_PointCoord - vec2(0.5);
-          float radiusSq = dot(centered, centered);
-          float body = smoothstep(0.25, 0.0, radiusSq);
-          float core = smoothstep(0.08, 0.0, radiusSq);
-          vec3 color = vColor + core * 0.15;
+          float radial = smoothstep(0.32, 0.0, dot(centered, centered));
+          float body = sprite.a * radial;
+          float hotCore = smoothstep(0.48, 0.92, sprite.a);
+          vec3 color = vColor + hotCore * 0.12;
 
           gl_FragColor = vec4(color, body * vAlpha);
         }
@@ -265,18 +330,23 @@ export class TornadoSimulation {
 
       const sample = this.sampleFlow(x, y, z, time, config, this.seeds[index])
       const response = this.dragResponse[index]
+      const isCloud = this.kind[index] > 0.5
 
       vx += (sample.flowX - vx) * response * dt
       vy += (sample.flowY - vy) * response * dt
       vz += (sample.flowZ - vz) * response * dt
 
-      const turbulenceBoost = config.turbulence * (0.14 + sample.inflowWeight * 0.12)
-      const drag = Math.exp(-dt * (0.18 + sample.height01 * 0.08 + turbulenceBoost))
-      vx *= drag
-      vz *= drag
-      vy *= Math.exp(-dt * 0.12)
+      const drag =
+        0.12 +
+        sample.height01 * 0.08 +
+        config.turbulence * 0.08 +
+        config.surfaceRoughness * sample.inflowWeight * (isCloud ? 0.06 : 0.14)
+
+      vx *= Math.exp(-dt * drag)
+      vz *= Math.exp(-dt * drag)
+      vy *= Math.exp(-dt * (0.1 + (isCloud ? 0.02 : 0.06)))
       vy += this.buoyancy[index] * sample.condensation * dt
-      vy -= 2.45 * this.settling[index] * dt
+      vy -= (isCloud ? 1.45 : 2.8) * this.settling[index] * dt
 
       x += vx * dt
       y += vy * dt
@@ -284,9 +354,9 @@ export class TornadoSimulation {
 
       if (
         age > this.lifetimes[index] ||
-        y < -1.5 ||
-        y > config.height + 6 ||
-        Math.hypot(x, z) > config.radius * 4.8
+        y < -1.8 ||
+        y > config.height + 8 ||
+        Math.hypot(x, z) > config.radius * 5.2
       ) {
         this.resetParticle(index, config, false)
         continue
@@ -300,8 +370,7 @@ export class TornadoSimulation {
       this.velocities[cursor + 2] = vz
 
       const age01 = clamp(age / this.lifetimes[index], 0, 1)
-      const fade =
-        smoothstep(0, 0.07, age01) * (1 - smoothstep(0.72, 1, age01))
+      const fade = smoothstep(0, 0.08, age01) * (1 - smoothstep(0.72, 1, age01))
       const speed = Math.hypot(vx, vy, vz)
       const brightness = clamp(
         speed / (getPeakTangentialSpeedMs(config, sample.height01) + 8),
@@ -309,31 +378,53 @@ export class TornadoSimulation {
         1,
       )
 
-      if (this.kind[index] > 0.5) {
-        const whiteness = clamp(sample.condensation * 1.18 + brightness * 0.18, 0, 1)
-        this.colors[cursor] = lerp(0.66, 0.97, whiteness)
-        this.colors[cursor + 1] = lerp(0.7, 0.96, whiteness)
+      if (isCloud) {
+        const whiteness = clamp(
+          sample.condensation * 1.22 + brightness * 0.12 + config.humidity * 0.1,
+          0,
+          1,
+        )
+
+        this.colors[cursor] = lerp(0.66, 0.99, whiteness)
+        this.colors[cursor + 1] = lerp(0.7, 0.97, whiteness)
         this.colors[cursor + 2] = lerp(0.76, 1, whiteness)
         this.alpha[index] =
-          (0.04 + sample.condensation * 0.18 + sample.updraftWeight * 0.05) *
+          (0.028 +
+            sample.condensation * 0.2 +
+            sample.pressureDropHpa / 210 +
+            config.humidity * 0.03) *
           fade
         this.size[index] =
-          6 +
-          sample.condensation * 18 +
-          sample.updraftWeight * 4 +
-          Math.sin(this.seeds[index] * 50 + time * 1.9) * 0.8
+          9 +
+          sample.condensation * 26 +
+          sample.updraftWeight * 5 +
+          Math.sin(this.seeds[index] * 50 + time * 1.7) * 1.2
       } else {
-        const loftedDust = 1 - smoothstep(config.height * 0.16, config.height * 0.52, y)
-        this.colors[cursor] = lerp(0.58, 0.82, brightness * 0.4 + loftedDust * 0.36)
-        this.colors[cursor + 1] = lerp(0.42, 0.66, loftedDust * 0.44)
-        this.colors[cursor + 2] = lerp(0.28, 0.52, sample.condensation * 0.24)
+        const loftedDust = 1 - smoothstep(config.height * 0.15, config.height * 0.52, y)
+        const dustBand = smoothstep(
+          sample.coreRadius * 0.9,
+          sample.envelopeRadius * 0.95,
+          sample.radius,
+        )
+        const dustHeat =
+          loftedDust * 0.42 + config.surfaceRoughness * 0.24 + brightness * 0.2
+
+        this.colors[cursor] = lerp(0.46, 0.86, dustHeat)
+        this.colors[cursor + 1] = lerp(0.31, 0.66, loftedDust * 0.48)
+        this.colors[cursor + 2] = lerp(0.19, 0.44, sample.condensation * 0.2)
         this.alpha[index] =
-          (0.035 + sample.inflowWeight * 0.08 + loftedDust * 0.1) * fade
+          (0.022 +
+            sample.inflowWeight * 0.08 +
+            loftedDust * 0.09 +
+            config.surfaceRoughness * 0.045) *
+          dustBand *
+          fade
         this.size[index] =
-          5 +
-          sample.inflowWeight * 14 +
-          loftedDust * 6 +
-          Math.sin(this.seeds[index] * 40 + time * 1.4) * 0.6
+          7 +
+          sample.inflowWeight * 18 +
+          loftedDust * 10 +
+          config.surfaceRoughness * 4 +
+          Math.sin(this.seeds[index] * 44 + time * 1.3) * 0.9
       }
     }
 
@@ -346,6 +437,7 @@ export class TornadoSimulation {
   dispose() {
     this.geometry.dispose()
     this.material.dispose()
+    this.spriteTexture.dispose()
   }
 
   private syncParticleCount(config: TornadoControls) {
@@ -380,79 +472,97 @@ export class TornadoSimulation {
     const tangentZ = radialX
     const coreRadius = getCoreRadius(config, height01)
     const envelopeRadius = getEnvelopeRadius(config, height01)
+    const stormMotion = getStormMotion(config)
+    const surfaceFactor = Math.pow(1 - height01, 1.3 + config.surfaceRoughness * 0.22)
 
-    const outsideDecay = Math.exp(-Math.pow(radius / (envelopeRadius * 2.15), 2.1))
+    const outsideDecay = Math.exp(-Math.pow(radius / (envelopeRadius * 2.15), 2))
     const peakTangential = getPeakTangentialSpeedMs(config, height01)
     const tangentialSpeed =
       (radius < coreRadius
         ? peakTangential * (radius / coreRadius)
-        : peakTangential * Math.pow(coreRadius / radius, 0.84)) * outsideDecay
+        : peakTangential * Math.pow(coreRadius / radius, 0.82)) * outsideDecay
 
-    const inflowSpeed =
-      peakTangential /
-      Math.max(0.55, 2.15 * config.swirlRatio + 0.22)
-    const surfaceFactor = Math.pow(1 - height01, 1.45)
-    const coreWeight = gaussian(radius, coreRadius * 1.08)
-    const annulusWeight = gaussian(radius - coreRadius * 0.9, coreRadius * 0.82)
+    const coreWeight = gaussian(radius, coreRadius * 1.05)
+    const annulusWeight = gaussian(radius - coreRadius * 1.05, coreRadius * 0.88)
     const inflowWeight =
       surfaceFactor *
-      smoothstep(coreRadius * 0.8, envelopeRadius * 0.68, radius) *
-      (1 - smoothstep(envelopeRadius * 1.28, envelopeRadius * 2.2, radius))
+      smoothstep(coreRadius * 0.84, envelopeRadius * 0.72, radius) *
+      (1 - smoothstep(envelopeRadius * 1.24, envelopeRadius * 2.2, radius))
+
+    const frontAlignment = clamp(
+      radialX * -STORM_HEADING_X + radialZ * -STORM_HEADING_Z,
+      -1,
+      1,
+    )
+    const motionAsymmetry = 1 + frontAlignment * config.translationSpeed * 0.018
+    const inflowSpeed =
+      (peakTangential / Math.max(0.54, 2.08 * config.swirlRatio + 0.18)) *
+      (0.9 + config.surfaceRoughness * 0.24) *
+      motionAsymmetry
 
     let radialSpeed = -inflowSpeed * inflowWeight
     radialSpeed += inflowSpeed * 0.3 * coreWeight * surfaceFactor
     radialSpeed +=
       inflowSpeed *
-      0.22 *
+      0.2 *
       smoothstep(0.72, 1, height01) *
-      smoothstep(coreRadius * 0.95, envelopeRadius * 1.1, radius)
+      smoothstep(coreRadius * 0.95, envelopeRadius * 1.08, radius)
 
-    const updraftWeight = clamp(coreWeight * 0.62 + annulusWeight * 0.88, 0, 1.4)
-    const topCap = 1 - 0.76 * Math.pow(height01, 1.5)
+    const updraftWeight = clamp(coreWeight * 0.58 + annulusWeight * 0.96, 0, 1.5)
+    const topCap = 1 - 0.78 * Math.pow(height01, 1.45)
     let verticalSpeed =
       config.updraft *
-      (0.2 + updraftWeight * 0.96) *
+      (0.18 + updraftWeight * 0.98) *
       topCap *
       (0.92 + config.intensity * 0.14)
 
     verticalSpeed -=
       config.updraft *
-      0.1 *
+      0.08 *
       smoothstep(envelopeRadius * 0.95, envelopeRadius * 2.0, radius) *
-      smoothstep(0.72, 1, height01)
+      smoothstep(0.7, 1, height01)
 
     const waveA =
-      Math.sin(dz * 0.34 + time * 0.82 + seed * 0.9) -
+      Math.sin(dz * 0.34 + time * 0.86 + seed * 0.9) -
       Math.cos(y * 0.18 - time * 0.47 + seed * 1.4)
     const waveB =
-      Math.sin(dx * 0.28 - time * 0.65 + seed * 1.7) -
-      Math.cos(dz * 0.31 + time * 0.36 + seed * 0.7)
+      Math.sin(dx * 0.27 - time * 0.64 + seed * 1.6) -
+      Math.cos(dz * 0.31 + time * 0.38 + seed * 0.7)
     const waveC =
-      Math.sin(y * 0.24 + time * 0.54 + seed * 1.1) -
-      Math.cos(dx * 0.23 - time * 0.31 + seed * 1.9)
+      Math.sin(y * 0.23 + time * 0.58 + seed * 1.1) -
+      Math.cos(dx * 0.22 - time * 0.32 + seed * 1.9)
     const turbulenceStrength =
       config.turbulence *
-      (0.22 + surfaceFactor * 0.58 + inflowWeight * 0.36) *
-      (0.3 + outsideDecay * 0.7)
+      (0.16 +
+        surfaceFactor * 0.54 +
+        inflowWeight * 0.32 +
+        config.translationSpeed * 0.012) *
+      (0.34 + outsideDecay * 0.66)
 
+    const ambientTransport = 0.24 + smoothstep(0.16, 0.92, height01) * 0.56
     const flowX =
       tangentX * tangentialSpeed +
       radialX * radialSpeed +
+      stormMotion.x * ambientTransport +
       (waveC - waveB) * turbulenceStrength
     const flowY =
-      verticalSpeed + (waveA - waveC) * turbulenceStrength * 0.38
+      verticalSpeed + (waveA - waveC) * turbulenceStrength * 0.4
     const flowZ =
       tangentZ * tangentialSpeed +
       radialZ * radialSpeed +
+      stormMotion.z * ambientTransport +
       (waveB - waveA) * turbulenceStrength
 
     const pressureDropHpa =
-      (0.5 * AIR_DENSITY * sqr(tangentialSpeed) * (0.55 + coreWeight * 0.45)) /
+      (0.5 * AIR_DENSITY * sqr(tangentialSpeed) * (0.56 + coreWeight * 0.44)) /
       100
+    const condensationThreshold = lerp(12.5, 3.4, config.humidity)
     const condensation =
-      smoothstep(3.5, 24, pressureDropHpa) *
-      smoothstep(config.height * 0.04, config.height * 0.26, y) *
-      (0.58 + updraftWeight * 0.42)
+      smoothstep(condensationThreshold, condensationThreshold + 16, pressureDropHpa) *
+      smoothstep(config.height * 0.03, config.height * 0.22, y) *
+      (1 - smoothstep(config.height * 0.84, config.height * 1.02, y)) *
+      (0.34 + config.humidity * 0.66) *
+      (0.5 + updraftWeight * 0.5)
 
     return {
       flowX,
@@ -471,9 +581,12 @@ export class TornadoSimulation {
 
   private resetParticle(index: number, config: TornadoControls, airborne: boolean) {
     const cursor = index * 3
-    const condensationTracer = airborne
-      ? Math.random() < 0.68
-      : Math.random() < 0.28
+    const condensationChance = clamp(
+      0.22 + config.humidity * 0.56 + (airborne ? 0.08 : 0),
+      0.18,
+      0.92,
+    )
+    const condensationTracer = Math.random() < condensationChance
     const seed = Math.random() * TAU
 
     this.seeds[index] = seed
@@ -481,14 +594,14 @@ export class TornadoSimulation {
 
     if (condensationTracer) {
       const height01 = airborne
-        ? Math.pow(Math.random(), 0.74) * 0.86 + 0.04
-        : 0.06 + Math.random() * 0.14
+        ? Math.pow(Math.random(), 0.72) * 0.88 + 0.04
+        : 0.08 + Math.random() * 0.14
       const y = height01 * config.height
       const coreRadius = getCoreRadius(config, height01)
       const envelopeRadius = getEnvelopeRadius(config, height01)
       const radius =
-        coreRadius * (0.45 + Math.pow(Math.random(), 0.85) * 1.4) +
-        Math.random() * envelopeRadius * 0.14
+        coreRadius * (0.4 + Math.pow(Math.random(), 0.82) * 1.45) +
+        Math.random() * envelopeRadius * 0.1
       const angle = Math.random() * TAU
       const axis = getAxisOffset(config, height01, 0)
 
@@ -496,18 +609,18 @@ export class TornadoSimulation {
       this.positions[cursor + 1] = y
       this.positions[cursor + 2] = axis.z + Math.sin(angle) * radius
       this.velocities[cursor] = 0
-      this.velocities[cursor + 1] = config.updraft * (0.35 + Math.random() * 0.24)
+      this.velocities[cursor + 1] = config.updraft * (0.34 + Math.random() * 0.26)
       this.velocities[cursor + 2] = 0
-      this.dragResponse[index] = 4.2 + Math.random() * 1.7
-      this.settling[index] = 0.38 + Math.random() * 0.18
-      this.buoyancy[index] = 1.1 + Math.random() * 0.6
-      this.lifetimes[index] = 6.4 + Math.random() * 2.6
+      this.dragResponse[index] = 4.1 + Math.random() * 1.8
+      this.settling[index] = 0.32 + Math.random() * 0.18
+      this.buoyancy[index] = 1.08 + Math.random() * 0.68
+      this.lifetimes[index] = 6.2 + Math.random() * 2.7 + config.humidity * 0.8
     } else {
       const height01 = Math.random() * 0.08
       const y = height01 * config.height
       const envelopeRadius = getEnvelopeRadius(config, height01)
       const radius =
-        envelopeRadius * (0.44 + Math.pow(Math.random(), 0.75) * 1.35)
+        envelopeRadius * (0.46 + Math.pow(Math.random(), 0.72) * 1.5)
       const angle = Math.random() * TAU
       const axis = getAxisOffset(config, height01, 0)
 
@@ -515,19 +628,19 @@ export class TornadoSimulation {
       this.positions[cursor + 1] = y
       this.positions[cursor + 2] = axis.z + Math.sin(angle) * radius
       this.velocities[cursor] = 0
-      this.velocities[cursor + 1] = config.updraft * (0.06 + Math.random() * 0.18)
+      this.velocities[cursor + 1] = config.updraft * (0.05 + Math.random() * 0.18)
       this.velocities[cursor + 2] = 0
-      this.dragResponse[index] = 2 + Math.random() * 1.1
-      this.settling[index] = 1 + Math.random() * 0.35
-      this.buoyancy[index] = 0.14 + Math.random() * 0.16
-      this.lifetimes[index] = 4.8 + Math.random() * 1.8
+      this.dragResponse[index] = 1.9 + config.surfaceRoughness * 0.9 + Math.random() * 1.1
+      this.settling[index] = 0.96 + config.surfaceRoughness * 0.24 + Math.random() * 0.32
+      this.buoyancy[index] = 0.1 + Math.random() * 0.16
+      this.lifetimes[index] = 4.5 + Math.random() * 1.8 + config.surfaceRoughness * 0.7
     }
 
     this.colors[cursor] = 0.7
     this.colors[cursor + 1] = 0.7
     this.colors[cursor + 2] = 0.7
     this.alpha[index] = 0
-    this.size[index] = 7
-    this.ages[index] = airborne ? Math.random() * 1.2 : 0
+    this.size[index] = 8
+    this.ages[index] = airborne ? Math.random() * 1.15 : 0
   }
 }
