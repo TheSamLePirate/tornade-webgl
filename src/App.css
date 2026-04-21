@@ -1,0 +1,287 @@
+.app-shell {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.glass-panel {
+  position: absolute;
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(11, 18, 28, 0.82), rgba(7, 11, 18, 0.64)),
+    rgba(7, 11, 18, 0.46);
+  border: 1px solid rgba(166, 196, 226, 0.16);
+  backdrop-filter: blur(20px);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 50% 72%, rgba(255, 168, 92, 0.22), transparent 24%),
+    radial-gradient(circle at 18% 18%, rgba(121, 160, 204, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(4, 8, 14, 0.1), rgba(4, 8, 14, 0.72));
+}
+
+.hero-panel {
+  top: 24px;
+  left: 24px;
+  width: min(34rem, calc(100vw - 48px));
+  padding: 1.5rem;
+  border-radius: 28px;
+}
+
+.eyebrow,
+.panel-label,
+.metric-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  font-size: 0.72rem;
+  color: rgba(197, 214, 232, 0.72);
+}
+
+.hero-panel h1,
+.control-panel h2 {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display);
+  line-height: 0.92;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #f6f0e9;
+}
+
+.hero-panel h1 {
+  font-size: clamp(2.7rem, 7vw, 5.3rem);
+  max-width: 10ch;
+}
+
+.lede,
+.panel-copy,
+.metric-card span,
+.footer-note {
+  color: rgba(213, 222, 233, 0.84);
+}
+
+.lede {
+  margin: 1rem 0 0;
+  max-width: 34rem;
+  font-size: 0.98rem;
+}
+
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+
+.preset-button {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  text-align: left;
+  min-height: 5.8rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(242, 209, 165, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 183, 102, 0.14), rgba(255, 183, 102, 0.04)),
+    rgba(255, 255, 255, 0.03);
+  color: #f4ece0;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.preset-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 205, 138, 0.4);
+  background:
+    linear-gradient(180deg, rgba(255, 183, 102, 0.2), rgba(255, 183, 102, 0.08)),
+    rgba(255, 255, 255, 0.04);
+}
+
+.preset-button span {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.preset-button small {
+  font-size: 0.78rem;
+  color: rgba(225, 232, 239, 0.74);
+}
+
+.control-panel {
+  top: 24px;
+  right: 24px;
+  width: min(30rem, calc(100vw - 48px));
+  padding: 1.35rem 1.35rem 1.2rem;
+  border-radius: 26px;
+}
+
+.panel-head {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.panel-copy {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.control-grid {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.control {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.control-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+  color: #eef1f5;
+}
+
+.control-top output {
+  color: rgba(255, 190, 122, 0.92);
+  font-variant-numeric: tabular-nums;
+}
+
+.control input[type='range'] {
+  width: 100%;
+  margin: 0;
+  accent-color: #f2af61;
+  cursor: pointer;
+}
+
+.metrics-row {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.metric-card {
+  position: static;
+  padding: 1rem 1.1rem;
+  border-radius: 20px;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  line-height: 1;
+  color: #f6f0e9;
+}
+
+.metric-card span {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.footer-note {
+  position: absolute;
+  left: 50%;
+  bottom: 164px;
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: 0.72rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(166, 196, 226, 0.16);
+  background: rgba(6, 10, 16, 0.52);
+  backdrop-filter: blur(12px);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .hero-panel,
+  .control-panel {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    width: auto;
+    margin: 20px;
+  }
+
+  .app-shell {
+    display: grid;
+    align-content: start;
+  }
+
+  .metrics-row {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin: 0 20px 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer-note {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    justify-self: center;
+    margin: 0 20px 20px;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (max-width: 720px) {
+  .preset-row,
+  .metrics-row {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-panel,
+  .control-panel {
+    margin: 14px;
+    border-radius: 22px;
+  }
+
+  .hero-panel {
+    padding: 1.15rem;
+  }
+
+  .control-panel {
+    padding: 1.1rem;
+  }
+}

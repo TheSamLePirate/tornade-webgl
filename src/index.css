@@ -1,0 +1,63 @@
+:root {
+  --font-body:
+    'Avenir Next', Avenir, 'Segoe UI', 'Trebuchet MS', sans-serif;
+  --font-display:
+    'Avenir Next Condensed', Impact, Haettenschweiler, 'Arial Narrow Bold',
+    sans-serif;
+  --font-mono:
+    'SFMono-Regular', 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  color: #edf1f5;
+  background:
+    radial-gradient(circle at top, #3c556b 0%, rgba(60, 85, 107, 0) 34%),
+    linear-gradient(180deg, #0e1723 0%, #04070c 62%, #0c0907 100%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100svh;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+body,
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+a {
+  color: inherit;
+}
+
+p {
+  margin: 0;
+}
+
+::selection {
+  background: rgba(242, 175, 97, 0.3);
+}
+
+@media (max-width: 1100px) {
+  body {
+    overflow: auto;
+  }
+}
