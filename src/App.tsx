@@ -9,7 +9,7 @@ import {
 } from './lib/tornado-sim'
 
 type ControlKey = keyof TornadoControls
-type ControlGroup = 'core' | 'flow' | 'air'
+type ControlGroup = 'core' | 'flow' | 'air' | 'look'
 
 type SliderDefinition = {
   key: ControlKey
@@ -48,6 +48,11 @@ const groups: GroupDefinition[] = [
     id: 'air',
     label: 'Air',
     caption: 'Humidity, roughness and tracer richness.',
+  },
+  {
+    id: 'look',
+    label: 'Look',
+    caption: 'Cloud mass, dust, haze and cinematic lighting.',
   },
 ]
 
@@ -151,6 +156,60 @@ const sliderDefinitions: SliderDefinition[] = [
     group: 'air',
     format: (value) => `${Math.round(value * 100)}%`,
   },
+  {
+    key: 'cloudDensity',
+    label: 'Cloud density',
+    min: 0.25,
+    max: 1.5,
+    step: 0.01,
+    group: 'look',
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: 'dustAmount',
+    label: 'Dust amount',
+    min: 0,
+    max: 1.5,
+    step: 0.01,
+    group: 'look',
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: 'wallCloudStrength',
+    label: 'Wall cloud',
+    min: 0,
+    max: 1.5,
+    step: 0.01,
+    group: 'look',
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: 'haze',
+    label: 'Atmospheric haze',
+    min: 0,
+    max: 1.5,
+    step: 0.01,
+    group: 'look',
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: 'sunlight',
+    label: 'Sunlight',
+    min: 0.2,
+    max: 1.8,
+    step: 0.01,
+    group: 'look',
+    format: (value) => value.toFixed(2),
+  },
+  {
+    key: 'exposure',
+    label: 'Exposure',
+    min: 0.5,
+    max: 1.8,
+    step: 0.01,
+    group: 'look',
+    format: (value) => value.toFixed(2),
+  },
 ]
 
 const presets: PresetDefinition[] = [
@@ -174,6 +233,12 @@ const presets: PresetDefinition[] = [
       translationSpeed: 10.8,
       surfaceRoughness: 0.84,
       density: 0.94,
+      cloudDensity: 1.04,
+      dustAmount: 0.84,
+      wallCloudStrength: 0.78,
+      haze: 0.42,
+      sunlight: 0.98,
+      exposure: 1.04,
     },
   },
   {
@@ -191,6 +256,12 @@ const presets: PresetDefinition[] = [
       translationSpeed: 7.2,
       surfaceRoughness: 1.06,
       density: 0.9,
+      cloudDensity: 0.72,
+      dustAmount: 1.18,
+      wallCloudStrength: 0.56,
+      haze: 0.46,
+      sunlight: 0.88,
+      exposure: 0.98,
     },
   },
   {
@@ -208,6 +279,12 @@ const presets: PresetDefinition[] = [
       translationSpeed: 14.5,
       surfaceRoughness: 0.42,
       density: 0.74,
+      cloudDensity: 0.92,
+      dustAmount: 0.24,
+      wallCloudStrength: 0.38,
+      haze: 0.2,
+      sunlight: 1.06,
+      exposure: 1.08,
     },
   },
 ]
@@ -253,8 +330,8 @@ function App() {
           </div>
           <h1>Compact controls. Bigger storm.</h1>
           <p className="lede">
-            Rankine-style vortex, pressure-driven condensation, storm motion and
-            roughness-aware debris in a compact HUD.
+            Physical tornado controls plus a dedicated look tab so the storm can be
+            tuned cleanly instead of forcing one heavy art direction.
           </p>
 
           <div className="preset-pills">

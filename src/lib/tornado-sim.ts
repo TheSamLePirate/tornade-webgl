@@ -12,6 +12,12 @@ export type TornadoControls = {
   translationSpeed: number
   surfaceRoughness: number
   density: number
+  cloudDensity: number
+  dustAmount: number
+  wallCloudStrength: number
+  haze: number
+  sunlight: number
+  exposure: number
 }
 
 export type TornadoDiagnostics = {
@@ -35,6 +41,12 @@ export const defaultControls: TornadoControls = {
   translationSpeed: 8.5,
   surfaceRoughness: 0.72,
   density: 0.82,
+  cloudDensity: 0.84,
+  dustAmount: 0.7,
+  wallCloudStrength: 0.68,
+  haze: 0.38,
+  sunlight: 0.92,
+  exposure: 1.02,
 }
 
 const AIR_DENSITY = 1.18
@@ -65,7 +77,7 @@ function gaussian(distance: number, width: number) {
 }
 
 function createParticleSpriteTexture() {
-  const size = 128
+  const size = 192
   const canvas = document.createElement('canvas')
   canvas.width = size
   canvas.height = size
@@ -77,20 +89,51 @@ function createParticleSpriteTexture() {
 
   context.clearRect(0, 0, size, size)
 
-  for (let index = 0; index < 18; index += 1) {
-    const x = size * (0.24 + Math.random() * 0.52)
-    const y = size * (0.24 + Math.random() * 0.52)
-    const radius = size * (0.08 + Math.random() * 0.18)
-    const alpha = 0.08 + Math.random() * 0.1
+  const baseGradient = context.createRadialGradient(
+    size * 0.5,
+    size * 0.5,
+    size * 0.08,
+    size * 0.5,
+    size * 0.5,
+    size * 0.5,
+  )
+  baseGradient.addColorStop(0, 'rgba(255,255,255,0.18)')
+  baseGradient.addColorStop(0.42, 'rgba(255,255,255,0.1)')
+  baseGradient.addColorStop(1, 'rgba(255,255,255,0)')
+  context.fillStyle = baseGradient
+  context.fillRect(0, 0, size, size)
+
+  for (let index = 0; index < 34; index += 1) {
+    const x = size * (0.18 + Math.random() * 0.64)
+    const y = size * (0.18 + Math.random() * 0.64)
+    const radius = size * (0.05 + Math.random() * 0.15)
+    const alpha = 0.035 + Math.random() * 0.06
     const gradient = context.createRadialGradient(x, y, 0, x, y, radius)
 
     gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`)
-    gradient.addColorStop(0.55, `rgba(255, 255, 255, ${alpha * 0.45})`)
+    gradient.addColorStop(0.52, `rgba(255, 255, 255, ${alpha * 0.38})`)
     gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
 
     context.fillStyle = gradient
     context.fillRect(0, 0, size, size)
   }
+
+  context.globalCompositeOperation = 'destination-out'
+
+  for (let index = 0; index < 14; index += 1) {
+    const x = size * (0.22 + Math.random() * 0.56)
+    const y = size * (0.22 + Math.random() * 0.56)
+    const radius = size * (0.04 + Math.random() * 0.12)
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius)
+
+    gradient.addColorStop(0, 'rgba(0,0,0,0.06)')
+    gradient.addColorStop(1, 'rgba(0,0,0,0)')
+
+    context.fillStyle = gradient
+    context.fillRect(0, 0, size, size)
+  }
+
+  context.globalCompositeOperation = 'source-over'
 
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
@@ -107,21 +150,31 @@ function getStormMotion(config: TornadoControls) {
   }
 }
 
-function getEnvelopeRadius(config: TornadoControls, height01: number) {
+export function getEnvelopeRadiusAtHeight(
+  config: TornadoControls,
+  height01: number,
+) {
   return Math.max(
     config.coreRadius * 2,
     config.radius * (1.1 - 0.64 * Math.pow(clamp(height01, 0, 1), 0.84)),
   )
 }
 
-function getCoreRadius(config: TornadoControls, height01: number) {
+export function getCoreRadiusAtHeight(
+  config: TornadoControls,
+  height01: number,
+) {
   return Math.max(
     0.44,
     config.coreRadius * (0.94 - 0.24 * Math.pow(clamp(height01, 0, 1), 0.9)),
   )
 }
 
-function getAxisOffset(config: TornadoControls, height01: number, time: number) {
+export function getAxisOffsetAtHeight(
+  config: TornadoControls,
+  height01: number,
+  time: number,
+) {
   const motionLean = config.translationSpeed * height01 * (0.18 + config.turbulence * 0.06)
   const meander = config.radius * (0.045 + config.turbulence * 0.075)
   const shear = config.radius * config.turbulence * height01 * 0.12
@@ -252,10 +305,17 @@ export class TornadoSimulation {
     this.material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
+      premultipliedAlpha: true,
       uniforms: {
         uPixelRatio: { value: 1 },
         uSprite: { value: this.spriteTexture },
+        uFogColor: { value: new THREE.Color(0x071018) },
+        uFogNear: { value: 20 },
+        uFogFar: { value: 68 },
+        uSunlight: { value: 0.92 },
+        uExposure: { value: 1.02 },
+        uHaze: { value: 0.38 },
       },
       vertexShader: `
         uniform float uPixelRatio;
@@ -265,12 +325,14 @@ export class TornadoSimulation {
 
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vDepth;
 
         void main() {
           vColor = color;
           vAlpha = aAlpha;
 
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vDepth = -mvPosition.z;
           float perspective = 340.0 / max(1.0, -mvPosition.z);
           gl_PointSize = clamp(aSize * perspective * uPixelRatio, 1.0, 96.0);
           gl_Position = projectionMatrix * mvPosition;
@@ -278,19 +340,33 @@ export class TornadoSimulation {
       `,
       fragmentShader: `
         uniform sampler2D uSprite;
+        uniform vec3 uFogColor;
+        uniform float uFogNear;
+        uniform float uFogFar;
+        uniform float uSunlight;
+        uniform float uExposure;
+        uniform float uHaze;
 
         varying vec3 vColor;
         varying float vAlpha;
+        varying float vDepth;
 
         void main() {
           vec4 sprite = texture2D(uSprite, gl_PointCoord);
           vec2 centered = gl_PointCoord - vec2(0.5);
           float radial = smoothstep(0.32, 0.0, dot(centered, centered));
           float body = sprite.a * radial;
-          float hotCore = smoothstep(0.48, 0.92, sprite.a);
-          vec3 color = vColor + hotCore * 0.12;
+          float hotCore = smoothstep(0.46, 0.9, sprite.a);
+          float opacity = body * vAlpha;
+          float sunlightMix = clamp((uSunlight - 0.2) / 1.6, 0.0, 1.0);
+          float exposureBoost = pow(uExposure, 1.25);
+          vec3 litColor = mix(vColor * 0.46, vColor * 1.18, sunlightMix);
+          litColor *= mix(0.55, 1.55, clamp(exposureBoost / 2.1, 0.0, 1.0));
+          litColor += hotCore * mix(0.02, 0.09, sunlightMix);
+          float fogFactor = smoothstep(uFogNear, uFogFar, vDepth);
+          vec3 foggedColor = mix(litColor, uFogColor, fogFactor * (0.5 + uHaze * 0.5));
 
-          gl_FragColor = vec4(color, body * vAlpha);
+          gl_FragColor = vec4(foggedColor * opacity, opacity);
         }
       `,
     })
@@ -302,6 +378,22 @@ export class TornadoSimulation {
 
   setPixelRatio(pixelRatio: number) {
     this.material.uniforms.uPixelRatio.value = pixelRatio
+  }
+
+  setLookUniforms(options: {
+    fogColor: THREE.ColorRepresentation
+    fogNear: number
+    fogFar: number
+    sunlight: number
+    exposure: number
+    haze: number
+  }) {
+    this.material.uniforms.uFogColor.value.set(options.fogColor)
+    this.material.uniforms.uFogNear.value = options.fogNear
+    this.material.uniforms.uFogFar.value = options.fogFar
+    this.material.uniforms.uSunlight.value = options.sunlight
+    this.material.uniforms.uExposure.value = options.exposure
+    this.material.uniforms.uHaze.value = options.haze
   }
 
   initialize(config: TornadoControls) {
@@ -393,11 +485,13 @@ export class TornadoSimulation {
             sample.condensation * 0.2 +
             sample.pressureDropHpa / 210 +
             config.humidity * 0.03) *
+          (0.45 + config.cloudDensity * 0.8) *
           fade
         this.size[index] =
-          9 +
-          sample.condensation * 26 +
-          sample.updraftWeight * 5 +
+          (9 +
+            sample.condensation * 26 +
+            sample.updraftWeight * 5 +
+            config.cloudDensity * 4) +
           Math.sin(this.seeds[index] * 50 + time * 1.7) * 1.2
       } else {
         const loftedDust = 1 - smoothstep(config.height * 0.15, config.height * 0.52, y)
@@ -417,13 +511,15 @@ export class TornadoSimulation {
             sample.inflowWeight * 0.08 +
             loftedDust * 0.09 +
             config.surfaceRoughness * 0.045) *
+          (0.35 + config.dustAmount * 0.9) *
           dustBand *
           fade
         this.size[index] =
-          7 +
-          sample.inflowWeight * 18 +
-          loftedDust * 10 +
-          config.surfaceRoughness * 4 +
+          (7 +
+            sample.inflowWeight * 18 +
+            loftedDust * 10 +
+            config.surfaceRoughness * 4 +
+            config.dustAmount * 5) +
           Math.sin(this.seeds[index] * 44 + time * 1.3) * 0.9
       }
     }
@@ -462,7 +558,7 @@ export class TornadoSimulation {
     seed: number,
   ): FlowSample {
     const height01 = clamp(y / config.height, 0, 1)
-    const axis = getAxisOffset(config, height01, time)
+    const axis = getAxisOffsetAtHeight(config, height01, time)
     const dx = x - axis.x
     const dz = z - axis.z
     const radius = Math.hypot(dx, dz) + 0.0001
@@ -470,8 +566,8 @@ export class TornadoSimulation {
     const radialZ = dz / radius
     const tangentX = -radialZ
     const tangentZ = radialX
-    const coreRadius = getCoreRadius(config, height01)
-    const envelopeRadius = getEnvelopeRadius(config, height01)
+    const coreRadius = getCoreRadiusAtHeight(config, height01)
+    const envelopeRadius = getEnvelopeRadiusAtHeight(config, height01)
     const stormMotion = getStormMotion(config)
     const surfaceFactor = Math.pow(1 - height01, 1.3 + config.surfaceRoughness * 0.22)
 
@@ -597,13 +693,13 @@ export class TornadoSimulation {
         ? Math.pow(Math.random(), 0.72) * 0.88 + 0.04
         : 0.08 + Math.random() * 0.14
       const y = height01 * config.height
-      const coreRadius = getCoreRadius(config, height01)
-      const envelopeRadius = getEnvelopeRadius(config, height01)
+      const coreRadius = getCoreRadiusAtHeight(config, height01)
+      const envelopeRadius = getEnvelopeRadiusAtHeight(config, height01)
       const radius =
         coreRadius * (0.4 + Math.pow(Math.random(), 0.82) * 1.45) +
         Math.random() * envelopeRadius * 0.1
       const angle = Math.random() * TAU
-      const axis = getAxisOffset(config, height01, 0)
+      const axis = getAxisOffsetAtHeight(config, height01, 0)
 
       this.positions[cursor] = axis.x + Math.cos(angle) * radius
       this.positions[cursor + 1] = y
@@ -618,11 +714,11 @@ export class TornadoSimulation {
     } else {
       const height01 = Math.random() * 0.08
       const y = height01 * config.height
-      const envelopeRadius = getEnvelopeRadius(config, height01)
+      const envelopeRadius = getEnvelopeRadiusAtHeight(config, height01)
       const radius =
         envelopeRadius * (0.46 + Math.pow(Math.random(), 0.72) * 1.5)
       const angle = Math.random() * TAU
-      const axis = getAxisOffset(config, height01, 0)
+      const axis = getAxisOffsetAtHeight(config, height01, 0)
 
       this.positions[cursor] = axis.x + Math.cos(angle) * radius
       this.positions[cursor + 1] = y
