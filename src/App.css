@@ -150,6 +150,13 @@
   font-size: 0.92rem;
 }
 
+.panel-meta {
+  color: rgba(255, 196, 132, 0.84);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .control-grid {
   display: grid;
   gap: 0.95rem;

@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { PARTICLE_LIMIT, TornadoSimulation, type TornadoControls } from '../lib/tornado-sim'
+import {
+  deriveTornadoDiagnostics,
+  PARTICLE_LIMIT,
+  TornadoSimulation,
+  type TornadoControls,
+} from '../lib/tornado-sim'
 
 type TornadoViewportProps = {
   config: TornadoControls
@@ -131,6 +136,21 @@ export function TornadoViewport({ config }: TornadoViewportProps) {
     ring.scale.setScalar(configRef.current.radius * 2.6)
     scene.add(ring)
 
+    const coreHaloMaterial = new THREE.MeshBasicMaterial({
+      color: 0xd9e8ff,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const coreHalo = new THREE.Mesh(
+      new THREE.RingGeometry(0.5, 1, 96),
+      coreHaloMaterial,
+    )
+    coreHalo.rotation.x = -Math.PI / 2
+    coreHalo.position.y = 0.01
+    scene.add(coreHalo)
+
     const simulation = new TornadoSimulation(PARTICLE_LIMIT)
     simulation.setPixelRatio(renderer.getPixelRatio())
     simulation.initialize(configRef.current)
@@ -150,16 +170,35 @@ export function TornadoViewport({ config }: TornadoViewportProps) {
 
     let animationFrame = 0
     let previous = performance.now()
-    const orbitTarget = new THREE.Vector3(0, configRef.current.height * 0.35, 0)
+    const diagnostics = deriveTornadoDiagnostics(configRef.current)
+    const orbitTarget = new THREE.Vector3(0, diagnostics.visibleColumnMeters * 0.32, 0)
 
     const renderFrame = (now: number) => {
       const dt = Math.min((now - previous) / 1000, 1 / 30)
       previous = now
 
       const nextConfig = configRef.current
-      ground.scale.setScalar(nextConfig.radius * 4.4)
-      ring.scale.setScalar(nextConfig.radius * 2.35)
-      orbitTarget.set(0, nextConfig.height * 0.35, 0)
+      const nextDiagnostics = deriveTornadoDiagnostics(nextConfig)
+
+      ground.scale.setScalar(nextConfig.radius * 4.7)
+      groundMaterial.opacity = THREE.MathUtils.lerp(
+        groundMaterial.opacity,
+        0.48 + nextConfig.turbulence * 0.2 + nextConfig.intensity * 0.1,
+        0.08,
+      )
+      ring.scale.setScalar(nextConfig.radius * 1.4)
+      ringMaterial.opacity = THREE.MathUtils.lerp(
+        ringMaterial.opacity,
+        0.04 + nextDiagnostics.pressureDropHpa / 320,
+        0.08,
+      )
+      coreHalo.scale.setScalar(nextConfig.coreRadius * 2.1)
+      coreHaloMaterial.opacity = THREE.MathUtils.lerp(
+        coreHaloMaterial.opacity,
+        0.05 + nextDiagnostics.pressureDropHpa / 420,
+        0.08,
+      )
+      orbitTarget.set(0, nextDiagnostics.visibleColumnMeters * 0.32, 0)
       orbit.target.lerp(orbitTarget, 0.06)
 
       simulation.update(dt, now / 1000, nextConfig)
@@ -180,6 +219,8 @@ export function TornadoViewport({ config }: TornadoViewportProps) {
       groundMaterial.dispose()
       ring.geometry.dispose()
       ringMaterial.dispose()
+      coreHalo.geometry.dispose()
+      coreHaloMaterial.dispose()
       groundTexture.dispose()
       renderer.dispose()
       host.removeChild(renderer.domElement)

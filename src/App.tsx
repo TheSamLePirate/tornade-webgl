@@ -3,6 +3,7 @@ import './App.css'
 import { TornadoViewport } from './components/TornadoViewport'
 import {
   defaultControls,
+  deriveTornadoDiagnostics,
   particleCountFromDensity,
   type TornadoControls,
 } from './lib/tornado-sim'
@@ -50,24 +51,32 @@ const sliderDefinitions: SliderDefinition[] = [
     format: (value) => `${value.toFixed(1)} m`,
   },
   {
-    key: 'twist',
-    label: 'Angular momentum',
-    min: 5,
-    max: 22,
-    step: 0.1,
-    format: (value) => `${value.toFixed(1)} rad/s`,
+    key: 'coreRadius',
+    label: 'Core radius',
+    min: 0.7,
+    max: 2.8,
+    step: 0.01,
+    format: (value) => `${value.toFixed(2)} m`,
+  },
+  {
+    key: 'swirlRatio',
+    label: 'Swirl ratio',
+    min: 0.55,
+    max: 2.1,
+    step: 0.01,
+    format: (value) => value.toFixed(2),
   },
   {
     key: 'updraft',
-    label: 'Updraft',
-    min: 7,
-    max: 24,
+    label: 'Core updraft',
+    min: 8,
+    max: 30,
     step: 0.1,
     format: (value) => `${value.toFixed(1)} m/s`,
   },
   {
     key: 'turbulence',
-    label: 'Turbulence',
+    label: 'Shear turbulence',
     min: 0.05,
     max: 1.4,
     step: 0.01,
@@ -86,33 +95,35 @@ const sliderDefinitions: SliderDefinition[] = [
 const presets: PresetDefinition[] = [
   {
     label: 'Cinematic',
-    caption: 'Balanced funnel with readable structure.',
+    caption: 'Balanced condensation funnel and visible debris skirt.',
     config: defaultControls,
   },
   {
     label: 'Violent',
-    caption: 'Fast core, taller plume, harder lift.',
+    caption: 'Tighter core, higher swirl ratio, stronger pressure drop.',
     config: {
-      intensity: 1.28,
-      radius: 5.2,
-      height: 29,
-      twist: 17.6,
-      updraft: 20.5,
-      turbulence: 1.05,
-      density: 0.9,
+      intensity: 1.34,
+      radius: 5.5,
+      height: 31,
+      coreRadius: 1.02,
+      swirlRatio: 1.72,
+      updraft: 25.5,
+      turbulence: 0.92,
+      density: 0.92,
     },
   },
   {
     label: 'Wedge',
-    caption: 'Wide base and dusty wall-cloud footprint.',
+    caption: 'Wide inflow skirt with a broader, lower visible column.',
     config: {
-      intensity: 1.05,
-      radius: 8.3,
-      height: 24,
-      twist: 10.4,
-      updraft: 14.8,
-      turbulence: 0.72,
-      density: 0.84,
+      intensity: 1.08,
+      radius: 8.6,
+      height: 23,
+      coreRadius: 1.95,
+      swirlRatio: 0.86,
+      updraft: 15.2,
+      turbulence: 0.64,
+      density: 0.88,
     },
   },
 ]
@@ -121,9 +132,8 @@ function App() {
   const [config, setConfig] = useState<TornadoControls>(defaultControls)
 
   const particles = particleCountFromDensity(config.density)
-  const footprint = (config.radius * 2.8).toFixed(1)
-  const peakFlow = Math.round(config.twist * config.intensity * 12 + config.updraft * 6)
-  const shearIndex = Math.round(config.turbulence * config.intensity * 100)
+  const diagnostics = deriveTornadoDiagnostics(config)
+  const footprint = (config.radius * 2.5).toFixed(1)
 
   const handleSliderChange =
     (key: ControlKey) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -143,9 +153,10 @@ function App() {
         <p className="eyebrow">Bun + Vite + React + TypeScript + Three.js</p>
         <h1>Physical Particle Tornado</h1>
         <p className="lede">
-          A WebGL tornado sandbox driven by a velocity field with angular momentum,
-          radial entrainment, updraft and noisy vortex shedding. Orbit the camera,
-          tune the funnel, and push the storm from cinematic to violent.
+          A real-time tornado sandbox driven by a height-varying Rankine-style
+          vortex, surface inflow, pressure-drop condensation and separate dust
+          versus cloud tracer inertia. Orbit the camera, tune the core, and push
+          the storm from photogenic to violent.
         </p>
 
         <div className="preset-row">
@@ -170,8 +181,12 @@ function App() {
             <h2>Shape the funnel</h2>
           </div>
           <p className="panel-copy">
-            Parameters act directly on the simulated velocity field and the number
-            of active particles.
+            Controls feed a structured vortex model: core radius shapes the solid
+            body region, swirl ratio governs inflow versus rotation, and tracer
+            visibility follows the local pressure deficit.
+          </p>
+          <p className="panel-copy panel-meta">
+            Live tracers: {particles.toLocaleString()} | inflow belt: {footprint} m
           </p>
         </div>
 
@@ -197,30 +212,30 @@ function App() {
 
       <section className="metrics-row" aria-label="Simulation metrics">
         <article className="glass-panel metric-card">
-          <p className="metric-label">Active particles</p>
-          <strong>{particles.toLocaleString()}</strong>
-          <span>Dense additive point cloud with live respawn.</span>
+          <p className="metric-label">Peak wind</p>
+          <strong>{diagnostics.peakWindKmh} km/h</strong>
+          <span>Estimated maximum tangential speed near the surface core.</span>
         </article>
         <article className="glass-panel metric-card">
-          <p className="metric-label">Footprint</p>
-          <strong>{footprint} m</strong>
-          <span>Approximate ground diameter of the rotating inflow.</span>
+          <p className="metric-label">Pressure drop</p>
+          <strong>{diagnostics.pressureDropHpa} hPa</strong>
+          <span>Static pressure deficit used to reveal condensation in the funnel.</span>
         </article>
         <article className="glass-panel metric-card">
-          <p className="metric-label">Peak flow</p>
-          <strong>{peakFlow} km/h</strong>
-          <span>Rule-of-thumb composite from twist and vertical lift.</span>
+          <p className="metric-label">Core diameter</p>
+          <strong>{diagnostics.coreDiameterMeters} m</strong>
+          <span>Width of the solid-body rotation zone before the decay region.</span>
         </article>
         <article className="glass-panel metric-card">
-          <p className="metric-label">Shear index</p>
-          <strong>{shearIndex}</strong>
-          <span>Higher values inject more lateral breakup and wobble.</span>
+          <p className="metric-label">Visible column</p>
+          <strong>{diagnostics.visibleColumnMeters} m</strong>
+          <span>Approximate condensation height under the current pressure field.</span>
         </article>
       </section>
 
       <footer className="footer-note">
-        Drag to orbit, scroll to zoom, and try the presets before fine-tuning the
-        sliders.
+        Drag to orbit, scroll to zoom, and compare how core radius and swirl ratio
+        reshape the funnel before fine-tuning turbulence.
       </footer>
     </main>
   )
