@@ -4,6 +4,10 @@
   overflow: hidden;
 }
 
+.app-shell.clean-view {
+  padding: 0;
+}
+
 .viewport {
   position: absolute;
   inset: 0;
@@ -22,21 +26,59 @@
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 52% 76%, rgba(255, 176, 96, 0.18), transparent 18%),
-    radial-gradient(circle at 18% 14%, rgba(125, 160, 202, 0.16), transparent 30%),
-    linear-gradient(180deg, rgba(7, 11, 18, 0.08), rgba(7, 11, 18, 0.68));
+    radial-gradient(circle at 48% 74%, rgba(255, 187, 104, 0.2), transparent 18%),
+    radial-gradient(circle at 16% 12%, rgba(150, 190, 222, 0.16), transparent 30%),
+    linear-gradient(115deg, rgba(246, 177, 92, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(6, 10, 15, 0.02), rgba(6, 10, 15, 0.34) 58%, rgba(4, 4, 5, 0.72));
+  mix-blend-mode: screen;
+}
+
+.lens-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(105deg, transparent 0 42%, rgba(244, 229, 188, 0.04) 43%, transparent 44% 100%),
+    repeating-linear-gradient(
+      102deg,
+      rgba(217, 232, 244, 0.024) 0 1px,
+      transparent 1px 34px
+    ),
+    radial-gradient(circle at 46% 47%, transparent 0 44%, rgba(0, 0, 0, 0.42) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(16, 9, 4, 0.14));
+  opacity: 0.78;
+  animation: weather-scan 13s linear infinite;
+}
+
+@keyframes weather-scan {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      center;
+  }
+
+  to {
+    background-position:
+      40px 92px,
+      -86px 320px,
+      center;
+  }
 }
 
 .glass-panel {
   z-index: 2;
   background:
-    linear-gradient(180deg, rgba(10, 16, 26, 0.82), rgba(8, 12, 19, 0.6)),
-    rgba(8, 12, 19, 0.42);
-  border: 1px solid rgba(177, 198, 221, 0.16);
+    linear-gradient(180deg, rgba(11, 17, 25, 0.74), rgba(8, 10, 14, 0.5)),
+    rgba(8, 12, 19, 0.34);
+  border: 1px solid rgba(220, 231, 239, 0.18);
   box-shadow:
-    0 22px 64px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px) saturate(140%);
+    0 24px 72px rgba(0, 0, 0, 0.34),
+    0 0 48px rgba(255, 176, 96, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(128%);
+  border-radius: 8px;
 }
 
 .hud-header {
@@ -54,7 +96,6 @@
 .brand-dock {
   width: min(23rem, 46vw);
   padding: 1rem 1rem 0.95rem;
-  border-radius: 24px;
 }
 
 .dock-topline {
@@ -64,12 +105,19 @@
   gap: 0.75rem;
 }
 
+.button-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.42rem;
+}
+
 .eyebrow {
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.22em;
   font-size: 0.68rem;
-  color: rgba(191, 208, 228, 0.72);
+  color: rgba(219, 229, 238, 0.72);
 }
 
 .brand-dock h1,
@@ -80,17 +128,18 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #f7f2ea;
+  text-shadow: 0 1px 18px rgba(255, 196, 112, 0.16);
 }
 
 .brand-dock h1 {
-  font-size: clamp(1.8rem, 3vw, 2.9rem);
-  max-width: 10ch;
+  font-size: clamp(1.45rem, 2.4vw, 2.3rem);
+  max-width: 15ch;
 }
 
 .lede,
 .dock-caption,
 .footer-note {
-  color: rgba(214, 223, 234, 0.82);
+  color: rgba(222, 230, 237, 0.8);
 }
 
 .lede {
@@ -112,7 +161,9 @@
 .ghost-button {
   padding: 0.5rem 0.78rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    rgba(255, 255, 255, 0.04);
   color: #eef3f8;
   font-size: 0.76rem;
   letter-spacing: 0.1em;
@@ -133,14 +184,20 @@
 
 .preset-pill {
   padding: 0.46rem 0.72rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 187, 112, 0.18), rgba(255, 187, 112, 0.06)),
+    linear-gradient(180deg, rgba(255, 190, 116, 0.18), rgba(255, 190, 116, 0.05)),
     rgba(255, 255, 255, 0.04);
   color: #f5ede2;
   font-size: 0.76rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.primary-preset {
+  background:
+    linear-gradient(180deg, rgba(224, 235, 244, 0.2), rgba(224, 235, 244, 0.08)),
+    rgba(255, 255, 255, 0.05);
 }
 
 .preset-pill:hover {
@@ -158,7 +215,6 @@
 
 .stat-chip {
   padding: 0.85rem 0.95rem;
-  border-radius: 20px;
 }
 
 .stat-chip span {
@@ -175,7 +231,8 @@
   font-family: var(--font-display);
   font-size: clamp(1.2rem, 2vw, 1.85rem);
   line-height: 1;
-  color: #fbf6ef;
+  color: #fff7ec;
+  text-shadow: 0 0 22px rgba(255, 191, 112, 0.18);
 }
 
 .control-dock {
@@ -185,7 +242,6 @@
   z-index: 2;
   width: min(24rem, calc(100vw - 36px));
   padding: 0.95rem;
-  border-radius: 24px;
 }
 
 .control-dock.closed {
@@ -229,7 +285,7 @@
 
 .tab-button {
   padding: 0.62rem 0.4rem;
-  border-radius: 14px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.035);
   color: rgba(224, 233, 242, 0.74);
   font-size: 0.78rem;
@@ -239,7 +295,7 @@
 
 .tab-button.active {
   background:
-    linear-gradient(180deg, rgba(255, 192, 120, 0.18), rgba(255, 192, 120, 0.06)),
+    linear-gradient(180deg, rgba(255, 196, 124, 0.22), rgba(255, 196, 124, 0.07)),
     rgba(255, 255, 255, 0.05);
   color: #fff5e7;
 }
@@ -254,7 +310,7 @@
   display: grid;
   gap: 0.38rem;
   padding: 0.56rem 0.7rem;
-  border-radius: 16px;
+  border-radius: 8px;
   border: 1px solid rgba(177, 198, 221, 0.1);
   background: rgba(255, 255, 255, 0.03);
 }
@@ -268,7 +324,7 @@
 }
 
 .control-top output {
-  color: rgba(255, 193, 124, 0.96);
+  color: rgba(255, 205, 138, 0.96);
   font-variant-numeric: tabular-nums;
 }
 
@@ -288,7 +344,7 @@
 
 .dock-meta span {
   padding: 0.36rem 0.58rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.05);
   color: rgba(236, 242, 247, 0.88);
   font-size: 0.7rem;
@@ -307,12 +363,37 @@
   z-index: 2;
   max-width: 30rem;
   padding: 0.58rem 0.84rem;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 1px solid rgba(177, 198, 221, 0.12);
-  background: rgba(7, 11, 18, 0.46);
+  background:
+    linear-gradient(180deg, rgba(12, 17, 22, 0.54), rgba(7, 11, 18, 0.38)),
+    rgba(7, 11, 18, 0.38);
   backdrop-filter: blur(10px);
   font-size: 0.78rem;
   line-height: 1.35;
+}
+
+.cinema-mode .brand-dock {
+  width: min(20rem, 40vw);
+  opacity: 0.82;
+}
+
+.cinema-mode .brand-dock .lede,
+.cinema-mode .preset-pills {
+  display: none;
+}
+
+.cinema-mode .stats-rack {
+  opacity: 0.78;
+}
+
+.cinema-mode .control-dock.closed {
+  opacity: 0.78;
+}
+
+.cinema-mode .footer-note {
+  letter-spacing: 0.16em;
+  color: rgba(232, 238, 242, 0.72);
 }
 
 @media (max-width: 1080px) {
@@ -335,6 +416,11 @@
     display: grid;
     align-content: start;
     padding: 14px;
+  }
+
+  .app-shell.clean-view {
+    display: block;
+    padding: 0;
   }
 
   .hud-header,
@@ -374,7 +460,6 @@
   .brand-dock,
   .control-dock {
     padding: 0.85rem;
-    border-radius: 22px;
   }
 
   .stats-rack {
@@ -390,6 +475,6 @@
   }
 
   .footer-note {
-    border-radius: 18px;
+    font-size: 0.68rem;
   }
 }

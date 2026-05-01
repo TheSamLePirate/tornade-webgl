@@ -1,4 +1,4 @@
-import { type ChangeEvent, useState } from 'react'
+import { type ChangeEvent, useEffect, useState } from 'react'
 import './App.css'
 import { TornadoViewport } from './components/TornadoViewport'
 import {
@@ -292,7 +292,9 @@ const presets: PresetDefinition[] = [
 function App() {
   const [config, setConfig] = useState<TornadoControls>(defaultControls)
   const [activeGroup, setActiveGroup] = useState<ControlGroup>('core')
-  const [controlsOpen, setControlsOpen] = useState(true)
+  const [controlsOpen, setControlsOpen] = useState(false)
+  const [cinemaMode, setCinemaMode] = useState(true)
+  const [cleanView, setCleanView] = useState(false)
 
   const diagnostics = deriveTornadoDiagnostics(config)
   const particles = particleCountFromDensity(config.density)
@@ -301,6 +303,24 @@ function App() {
   const visibleControls = sliderDefinitions.filter(
     (slider) => slider.group === activeGroup,
   )
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCleanView(false)
+      }
+
+      if (event.key.toLowerCase() === 'h') {
+        setCleanView((hidden) => !hidden)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
   const handleSliderChange =
     (key: ControlKey) => (event: ChangeEvent<HTMLInputElement>) => {
@@ -312,135 +332,161 @@ function App() {
     }
 
   return (
-    <main className="app-shell">
-      <TornadoViewport config={config} />
-      <div className="atmosphere" aria-hidden="true" />
+    <main
+      className={`app-shell ${cinemaMode ? 'cinema-mode' : ''} ${
+        cleanView ? 'clean-view' : ''
+      }`}
+    >
+      <TornadoViewport config={config} hideSceneOverlays={cleanView} />
 
-      <header className="hud-header">
-        <section className="glass-panel brand-dock">
-          <div className="dock-topline">
-            <p className="eyebrow">Tornado Lab V3</p>
-            <button
-              className="ghost-button"
-              type="button"
-              onClick={() => setConfig(defaultControls)}
-            >
-              Reset
-            </button>
-          </div>
-          <h1>Compact controls. Bigger storm.</h1>
-          <p className="lede">
-            Physical tornado controls plus a dedicated look tab so the storm can be
-            tuned cleanly instead of forcing one heavy art direction.
-          </p>
+      {!cleanView ? (
+        <>
+          <div className="atmosphere" aria-hidden="true" />
+          <div className="lens-overlay" aria-hidden="true" />
 
-          <div className="preset-pills">
-            {presets.map((preset) => (
-              <button
-                key={preset.label}
-                className="preset-pill"
-                type="button"
-                onClick={() => setConfig(preset.config)}
-                title={preset.caption}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        </section>
+          <header className="hud-header">
+            <section className="glass-panel brand-dock">
+              <div className="dock-topline">
+                <p className="eyebrow">Live Supercell</p>
+                <div className="button-cluster">
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => setCinemaMode((enabled) => !enabled)}
+                  >
+                    {cinemaMode ? 'HUD' : 'Cinema'}
+                  </button>
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => setCleanView(true)}
+                    title="Hide all HUD and overlays. Press H or Escape to show UI again."
+                  >
+                    Clean
+                  </button>
+                </div>
+              </div>
+              <h1>Documentary tornado simulator</h1>
+              <p className="lede">
+                Live volumetric funnel, rotating debris, rain curtains, lightning and
+                storm-scale motion for a full-screen intercept shot.
+              </p>
 
-        <section className="stats-rack" aria-label="Storm diagnostics">
-          <article className="glass-panel stat-chip">
-            <span>Peak Wind</span>
-            <strong>{diagnostics.peakWindKmh} km/h</strong>
-          </article>
-          <article className="glass-panel stat-chip">
-            <span>Pressure Drop</span>
-            <strong>{diagnostics.pressureDropHpa} hPa</strong>
-          </article>
-          <article className="glass-panel stat-chip">
-            <span>Visible Column</span>
-            <strong>{diagnostics.visibleColumnMeters} m</strong>
-          </article>
-          <article className="glass-panel stat-chip">
-            <span>Core Diameter</span>
-            <strong>{diagnostics.coreDiameterMeters} m</strong>
-          </article>
-        </section>
-      </header>
-
-      <section
-        className={`glass-panel control-dock ${controlsOpen ? 'open' : 'closed'}`}
-        aria-label="Physical controls"
-      >
-        <div className="dock-head">
-          <div>
-            <p className="eyebrow">Physical Variables</p>
-            <h2>{activeGroupData.label}</h2>
-            <p className="dock-caption">{activeGroupData.caption}</p>
-          </div>
-          <button
-            className="toggle-button"
-            type="button"
-            onClick={() => setControlsOpen((open) => !open)}
-          >
-            {controlsOpen ? 'Hide' : 'Tune'}
-          </button>
-        </div>
-
-        {controlsOpen ? (
-          <>
-            <div className="tab-row" role="tablist" aria-label="Control groups">
-              {groups.map((group) => (
+              <div className="preset-pills">
                 <button
-                  key={group.id}
-                  className={`tab-button ${group.id === activeGroup ? 'active' : ''}`}
+                  className="preset-pill primary-preset"
                   type="button"
-                  onClick={() => setActiveGroup(group.id)}
+                  onClick={() => setConfig(defaultControls)}
                 >
-                  {group.label}
+                  Reset
                 </button>
-              ))}
+                {presets.map((preset) => (
+                  <button
+                    key={preset.label}
+                    className="preset-pill"
+                    type="button"
+                    onClick={() => setConfig(preset.config)}
+                    title={preset.caption}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="stats-rack" aria-label="Storm diagnostics">
+              <article className="glass-panel stat-chip">
+                <span>Peak Wind</span>
+                <strong>{diagnostics.peakWindKmh} km/h</strong>
+              </article>
+              <article className="glass-panel stat-chip">
+                <span>Pressure Drop</span>
+                <strong>{diagnostics.pressureDropHpa} hPa</strong>
+              </article>
+              <article className="glass-panel stat-chip">
+                <span>Visible Column</span>
+                <strong>{diagnostics.visibleColumnMeters} m</strong>
+              </article>
+              <article className="glass-panel stat-chip">
+                <span>Core Diameter</span>
+                <strong>{diagnostics.coreDiameterMeters} m</strong>
+              </article>
+            </section>
+          </header>
+
+          <section
+            className={`glass-panel control-dock ${controlsOpen ? 'open' : 'closed'}`}
+            aria-label="Physical controls"
+          >
+            <div className="dock-head">
+              <div>
+                <p className="eyebrow">Physical Variables</p>
+                <h2>{activeGroupData.label}</h2>
+                <p className="dock-caption">{activeGroupData.caption}</p>
+              </div>
+              <button
+                className="toggle-button"
+                type="button"
+                onClick={() => setControlsOpen((open) => !open)}
+              >
+                {controlsOpen ? 'Hide' : 'Tune'}
+              </button>
             </div>
 
-            <div className="control-grid">
-              {visibleControls.map((slider) => (
-                <label className="control" key={slider.key}>
-                  <span className="control-top">
-                    <span>{slider.label}</span>
-                    <output>{slider.format(config[slider.key])}</output>
-                  </span>
-                  <input
-                    type="range"
-                    min={slider.min}
-                    max={slider.max}
-                    step={slider.step}
-                    value={config[slider.key]}
-                    onChange={handleSliderChange(slider.key)}
-                  />
-                </label>
-              ))}
-            </div>
+            {controlsOpen ? (
+              <>
+                <div className="tab-row" role="tablist" aria-label="Control groups">
+                  {groups.map((group) => (
+                    <button
+                      key={group.id}
+                      className={`tab-button ${group.id === activeGroup ? 'active' : ''}`}
+                      type="button"
+                      onClick={() => setActiveGroup(group.id)}
+                    >
+                      {group.label}
+                    </button>
+                  ))}
+                </div>
 
-            <div className="dock-meta">
-              <span>{particles.toLocaleString()} tracers</span>
-              <span>{footprint} m inflow belt</span>
-              <span>{Math.round(config.translationSpeed * 3.6)} km/h motion</span>
-            </div>
-          </>
-        ) : (
-          <div className="dock-meta dock-meta-closed">
-            <span>{Math.round(config.translationSpeed * 3.6)} km/h motion</span>
-            <span>{Math.round(config.humidity * 100)}% humidity</span>
-            <span>{particles.toLocaleString()} tracers</span>
-          </div>
-        )}
-      </section>
+                <div className="control-grid">
+                  {visibleControls.map((slider) => (
+                    <label className="control" key={slider.key}>
+                      <span className="control-top">
+                        <span>{slider.label}</span>
+                        <output>{slider.format(config[slider.key])}</output>
+                      </span>
+                      <input
+                        type="range"
+                        min={slider.min}
+                        max={slider.max}
+                        step={slider.step}
+                        value={config[slider.key]}
+                        onChange={handleSliderChange(slider.key)}
+                      />
+                    </label>
+                  ))}
+                </div>
 
-      <footer className="footer-note">
-        Drag to orbit, scroll to zoom, and use the tabs to tune structure, flow and
-        atmosphere without covering the storm.
-      </footer>
+                <div className="dock-meta">
+                  <span>{particles.toLocaleString()} tracers</span>
+                  <span>{footprint} m inflow belt</span>
+                  <span>{Math.round(config.translationSpeed * 3.6)} km/h motion</span>
+                </div>
+              </>
+            ) : (
+              <div className="dock-meta dock-meta-closed">
+                <span>{Math.round(config.translationSpeed * 3.6)} km/h motion</span>
+                <span>{Math.round(config.humidity * 100)}% humidity</span>
+                <span>{particles.toLocaleString()} tracers</span>
+              </div>
+            )}
+          </section>
+
+          <footer className="footer-note">
+            MESOCYCLONE VISUALIZATION // REAL-TIME TORNADO FLOW FIELD
+          </footer>
+        </>
+      ) : null}
     </main>
   )
 }
